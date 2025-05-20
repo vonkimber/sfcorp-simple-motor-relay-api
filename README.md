@@ -134,5 +134,3 @@ python relay_cli.py both on
 * **Relay doesn’t click**: Ensure the board is powered (12 V) and ground is shared with your serial adapter.
 
 ---
-
-Now you’re ready to integrate motorized screens or other RS‑232 relays into your product with a fully configurable, plug‑and‑play Python package. Enjoy!
