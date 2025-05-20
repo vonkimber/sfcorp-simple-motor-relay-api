@@ -30,7 +30,7 @@ A lightweight Flask-based web application to control a 2‑channel RS‑232 rela
 1. **Clone or download** this repository:
 
    ```bash
-   git clone https://github.com/your-org/screen-control-app.git
+   git clone https://github.com/vonkimber/sfcorp-simple-motor-relay-api
    cd screen-control-app
    ```
 2. **Install dependencies**:
