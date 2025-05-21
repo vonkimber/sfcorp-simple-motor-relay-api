@@ -1,42 +1,50 @@
+#!/usr/bin/env python3
+"""
+screen_control_app.py: Flask web server to control a 2-channel RS-232 relay board.
+Reads configuration from environment or .env and exposes UP, DOWN, STOP, OFF endpoints.
+"""
+import os
+import time
+import serial
 from flask import Flask, render_template_string, jsonify
-import serial, time, os
 from dotenv import load_dotenv
 
 # Load environment variables from .env if present
 load_dotenv()
 
-# Configurable serial settings via environment or defaults
+# Configuration defaults
 SERIAL_PORT = os.getenv('RELAY_SERIAL_PORT', 'COM3')
 BAUD_RATE = int(os.getenv('RELAY_BAUD', '9600'))
-TIMEOUT_S = float(os.getenv('RELAY_TIMEOUT', '1'))  # in seconds for ON commands
+TIMEOUT_S = float(os.getenv('RELAY_TIMEOUT', '1'))
+HOST = os.getenv('FLASK_RUN_HOST', '0.0.0.0')
+PORT = int(os.getenv('FLASK_RUN_PORT', '5000'))
 
-# Serial helper
+# Initialize serial connection
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 except serial.SerialException as e:
     raise RuntimeError(f"Could not open serial port {SERIAL_PORT}: {e}")
 
- def send_frame(relays):
+# Helper to send frames
+def send_frame(relays):
     """
-    Send an 8-byte command to specified relay(s).
-
-    relays: list of tuples (relay_num, state_bool)
+    Send an 8-byte command for each (relay_num, state_bool) in relays.
+    state_bool: True for ON (0x01), False for OFF (0x02)
     """
     for num, on in relays:
-        state = 0x01 if on else 0x02
-        frame = [0x55, 0x56, 0x00, 0x00, 0x00, num, state]
+        state_byte = 0x01 if on else 0x02
+        frame = [0x55, 0x56, 0x00, 0x00, 0x00, num, state_byte]
         checksum = sum(frame) & 0xFF
         frame.append(checksum)
         ser.write(bytes(frame))
         time.sleep(0.2)
 
-# Flask app
+# Create Flask app
 app = Flask(__name__)
-
 TEMPLATE = '''
 <!doctype html>
 <title>Relay Control</title>
-<h1>Relay Control Panel</h1>
+<h1>Screen Control Panel</h1>
 <button onclick="fetch('/up').then(r=>r.json()).then(j=>status.textContent=j.status)">UP</button>
 <button onclick="fetch('/down').then(r=>r.json()).then(j=>status.textContent=j.status)">DOWN</button>
 <button onclick="fetch('/stop').then(r=>r.json()).then(j=>status.textContent=j.status)">STOP</button>
@@ -50,11 +58,11 @@ def index():
 
 @app.route('/up')
 def up():
-    # Ensure relay2 is OFF, then relay1 ON for TIMEOUT_S seconds
+    # Relay2 OFF, Relay1 ON for TIMEOUT_S seconds
     send_frame([(2, False), (1, True)])
     time.sleep(TIMEOUT_S)
     send_frame([(1, False)])
-    return jsonify(status=f'UP executed with {TIMEOUT_S}s timeout')
+    return jsonify(status=f'UP executed ({TIMEOUT_S}s)')
 
 @app.route('/down')
 def down():
@@ -62,7 +70,7 @@ def down():
     send_frame([(1, False), (2, True)])
     time.sleep(TIMEOUT_S)
     send_frame([(2, False)])
-    return jsonify(status=f'DOWN executed with {TIMEOUT_S}s timeout')
+    return jsonify(status=f'DOWN executed ({TIMEOUT_S}s)')
 
 @app.route('/stop')
 def stop():
@@ -70,7 +78,7 @@ def stop():
     send_frame([(1, True), (2, True)])
     time.sleep(TIMEOUT_S)
     send_frame([(1, False), (2, False)])
-    return jsonify(status=f'STOP executed with {TIMEOUT_S}s timeout')
+    return jsonify(status=f'STOP executed ({TIMEOUT_S}s)')
 
 @app.route('/off')
 def off():
@@ -78,7 +86,9 @@ def off():
     send_frame([(1, False), (2, False)])
     return jsonify(status='OFF executed')
 
+
+def main():
+    app.run(host=HOST, port=PORT)
+
 if __name__ == '__main__':
-    # Run Flask on default port 5000, config via env FLASK_RUN_HOST, FLASK_RUN_PORT
-    app.run(host=os.getenv('FLASK_RUN_HOST', '0.0.0.0'),
-            port=int(os.getenv('FLASK_RUN_PORT', 5000)))
+    main()
